@@ -3,19 +3,38 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>V.S.E.P.R. // SUPREME NEURAL WORKBENCH</title>
+  <title>V.S.E.P.R. // SUPREME OS & PULSE DM</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
   <div class="bg-grid"></div>
+
+  <!-- SECURITY LOGIN / REGISTER GATE -->
+  <div class="auth-gate" id="authGate">
+    <div class="auth-card glass">
+      <div class="pulse-dot" style="margin: 0 auto 10px;"></div>
+      <h2 class="auth-title">V.S.E.P.R. // ACCESS PORTAL</h2>
+      <p class="auth-sub">ENTER USER ID & PASSWORD TO UNLOCK NEURAL CORE & PULSE DM</p>
+
+      <input type="text" id="authUserId" placeholder="User ID (e.g. mayank ya janvi)" autocomplete="off" />
+      <input type="password" id="authPassword" placeholder="Password" />
+      <div class="auth-err" id="authError"></div>
+
+      <div class="auth-btns">
+        <button id="loginBtn" class="btn-engage" style="padding: 11px;">🔓 UNLOCK & LOGIN</button>
+        <button id="registerBtn" class="btn-chip" style="padding: 10px;">✨ CREATE NEW USER ID</button>
+      </div>
+      <p class="auth-hint">Default IDs ready: <b>mayank</b> / <b>aris123</b> &nbsp;|&nbsp; <b>janvi</b> / <b>janvi123</b> (ya apni nayi ID banao)</p>
+    </div>
+  </div>
 
   <!-- TOP COMMAND & MULTI-API SWITCHBOARD -->
   <header class="topbar glass">
     <div class="brand">
       <div class="pulse-dot"></div>
       <div>
-        <h1>V.S.E.P.R. <span class="ver">OS // v1.0</span></h1>
-        <p class="subtitle">MULTI-API AUTONOMOUS NEURAL WORKBENCH</p>
+        <h1>V.S.E.P.R. <span class="ver">OS // v2.0</span></h1>
+        <p class="subtitle">LOGGED IN AS <span id="loggedUserLabel">@GUEST</span></p>
       </div>
     </div>
 
@@ -28,6 +47,11 @@
     </div>
 
     <div class="controls-bar">
+      <!-- INSTAGRAM-STYLE DM LAUNCHER WITH LIVE UNREAD BADGE -->
+      <button id="openPulseBtn" class="btn-pulse">
+        💬 PULSE DM <span class="unread-badge" id="globalUnreadBadge" style="display:none;">0</span>
+      </button>
+
       <select id="providerSelect" title="Select Active Brain">
         <option value="auto">⚡ BRAIN: AUTO-ROUTER</option>
         <option value="gemini">🧠 GEMINI 2.5 FLASH</option>
@@ -38,27 +62,26 @@
       </select>
 
       <select id="voiceSelect" title="Select Human Neural Voice">
-        <option value="hi-IN-MadhurNeural">🗣️ VOICE: MADHUR (HINGLISH)</option>
-        <option value="en-IN-NeerjaNeural">🗣️ VOICE: NEERJA (HINGLISH)</option>
-        <option value="en-GB-RyanNeural">🗣️ VOICE: RYAN (BRITISH)</option>
-        <option value="en-IN-PrabhatNeural">🗣️ VOICE: PRABHAT (INDIAN)</option>
+        <option value="hi-IN-MadhurNeural">🗣️ MADHUR (HINGLISH)</option>
+        <option value="en-IN-NeerjaNeural">🗣️ NEERJA (HINGLISH)</option>
+        <option value="en-GB-RyanNeural">🗣️ RYAN (BRITISH)</option>
+        <option value="en-IN-PrabhatNeural">🗣️ PRABHAT (INDIAN)</option>
       </select>
 
-      <button id="continuousBtn" class="btn-chip" title="Hands-Free Continuous Voice Call Mode">🔄 HANDS-FREE: OFF</button>
+      <button id="continuousBtn" class="btn-chip">🔄 HANDS-FREE: OFF</button>
       <button id="audioToggleBtn" class="btn-chip active">🔊 AUDIO: LIVE</button>
+      <button id="logoutBtn" class="btn-chip" title="Lock & Logout">🔒</button>
     </div>
   </header>
 
-  <!-- MAIN DUAL-PANE WORKBENCH -->
+  <!-- MAIN DUAL-PANE AI WORKBENCH -->
   <main class="workbench">
-    <!-- LEFT PANE: NEURAL ORB + HUMAN CONVERSATION + ECOSYSTEM NODES -->
     <section class="left-pane glass">
       <div class="orb-stage">
-        <canvas id="neuralOrb" width="220" height="110"></canvas>
+        <canvas id="neuralOrb" width="220" height="105"></canvas>
         <div class="orb-status" id="orbStatus">V.S.E.P.R. ONLINE // READY FOR COMMAND</div>
       </div>
 
-      <!-- ECOSYSTEM QUICK-LINK BAR -->
       <div class="node-dock">
         <a href="https://aris-master-core.onrender.com/" target="_blank" class="node-btn">A.R.I.S.</a>
         <a href="https://friday-aris.onrender.com/" target="_blank" class="node-btn">F.R.I.D.A.Y.</a>
@@ -67,15 +90,13 @@
         <a href="https://titan-aris.onrender.com/" target="_blank" class="node-btn">TITAN</a>
       </div>
 
-      <!-- LIVE CHAT & VOICE STREAM -->
       <div class="chat-feed" id="chatFeed">
         <div class="msg vsepr">
           <div class="meta">◈ V.S.E.P.R. // NEURAL CORE</div>
-          System online, Mayank. Saare free neural engines synced hain — bolo kya solve karna hai aaj?
+          System unlocked! Saare free neural engines aur Pulse DM app ready hain — bolo kya karna hai?
         </div>
       </div>
 
-      <!-- COMMAND INPUT DOCK -->
       <div class="input-dock">
         <button id="micBtn" class="btn-mic" title="Speak Command">🎙️</button>
         <input type="text" id="promptInput" placeholder="Bolo ya type karo (Physics, Python, Strategy)..." autocomplete="off" />
@@ -83,7 +104,6 @@
       </div>
     </section>
 
-    <!-- RIGHT PANE: LIVE CODE, PHYSICS DERIVATION & BLUEPRINT PAD -->
     <section class="right-pane glass">
       <div class="pad-header">
         <div>
@@ -96,12 +116,58 @@
           <button id="clearPadBtn" class="btn-small">🧹 CLEAR</button>
         </div>
       </div>
-
       <pre class="artifact-screen" id="artifactScreen">// V.S.E.P.R. Workbench Pad Ready...
-// Jab bhi tum koi Python script, JEE physics derivation, ya system blueprint maangoge,
-// woh chat ko bharne ke bajaye yahan clean aur copy-ready format mein khulega.</pre>
+// Code, JEE Physics derivations, aur system blueprints yahan clean khulenge.</pre>
     </section>
   </main>
+
+  <!-- INSTAGRAM-STYLE IN-APP SOCIAL & DIRECT MESSAGING DRAWER -->
+  <aside class="pulse-drawer glass" id="pulseDrawer">
+    <div class="pulse-header">
+      <div>
+        <span class="pulse-logo">📸 V.S.E.P.R. PULSE</span>
+        <span class="pulse-sub">ENCRYPTED SOCIAL & DIRECT MESSAGES</span>
+      </div>
+      <button id="closePulseBtn" class="btn-small">✕ CLOSE</button>
+    </div>
+
+    <!-- SEND FRIEND / FOLLOW REQUEST BAR -->
+    <div class="req-search-box">
+      <input type="text" id="friendSearchInput" placeholder="Enter User ID to send request (e.g. janvi)..." />
+      <button id="sendReqBtn" class="btn-engage" style="padding: 8px 12px; font-size: 11px;">+ SEND REQUEST</button>
+    </div>
+    <div class="req-feedback" id="reqFeedback"></div>
+
+    <!-- INCOMING REQUESTS (ACCEPT / DECLINE) -->
+    <div class="incoming-box" id="incomingBox" style="display:none;">
+      <div class="section-label">🔔 NEW FOLLOW / CHAT REQUESTS</div>
+      <div id="incomingList"></div>
+    </div>
+
+    <!-- INSTAGRAM-STYLE SPLIT: FRIENDS LIST + DIRECT CHAT -->
+    <div class="pulse-body">
+      <div class="friends-col">
+        <div class="section-label">DIRECT CHATS</div>
+        <div id="friendsList" class="friends-list"></div>
+      </div>
+
+      <div class="dm-col">
+        <div class="dm-topbar" id="dmTopbar">
+          <span id="activeFriendName">Select a friend to chat</span>
+          <span id="activeFriendStatus" class="status-pill">OFFLINE</span>
+        </div>
+
+        <div class="dm-messages" id="dmMessages">
+          <div class="dm-empty">Kisi friend ki request accept karo ya left list se choose karke Instagram-style chat shuru karo!</div>
+        </div>
+
+        <div class="dm-input-bar">
+          <input type="text" id="dmInput" placeholder="Message..." disabled />
+          <button id="dmSendBtn" class="btn-engage" style="padding: 0 14px;" disabled>SEND</button>
+        </div>
+      </div>
+    </div>
+  </aside>
 
   <script src="/app.js"></script>
 </body>
