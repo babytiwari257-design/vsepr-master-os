@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-app = FastAPI(title="V.S.E.P.R. OS // Neural Workbench + Pulse Social DM", version="2.0.0")
+app = FastAPI(title="V.S.E.P.R. OS // Multi-Model Neural Workbench + Pulse DM", version="2.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,24 +44,75 @@ VSEPR_SYSTEM_PROMPT = (
     "explanation outside short and natural."
 )
 
+# ================= COMPLETE RESPECTIVE PROVIDER MODEL POOLS =================
+GEMINI_MODELS = [
+    ("gemini-2.5-flash", "GEMINI 2.5 FLASH"),
+    ("gemini-2.5-pro", "GEMINI 2.5 PRO"),
+    ("gemini-2.0-flash", "GEMINI 2.0 FLASH"),
+]
+
+PROVIDER_MODEL_POOLS = {
+    "cerebras": {
+        "url": "https://api.cerebras.ai/v1/chat/completions",
+        "env": "CEREBRAS_API_KEY",
+        "models": [
+            ("llama-3.3-70b", "CEREBRAS LLAMA-3.3-70B"),
+            ("qwen-3-32b", "CEREBRAS QWEN-3-32B"),
+            ("llama3.1-8b", "CEREBRAS LLAMA-3.1-8B"),
+        ],
+    },
+    "groq": {
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "env": "GROQ_API_KEY",
+        "models": [
+            ("openai/gpt-oss-120b", "GROQ GPT-OSS-120B"),
+            ("qwen/qwen3.8-27b", "GROQ QWEN-3.8-27B"),
+            ("openai/gpt-oss-20b", "GROQ GPT-OSS-20B"),
+            ("allam-2-7b", "GROQ ALLAM-2-7B"),
+            ("llama-3.3-70b-versatile", "GROQ LLAMA-3.3-70B"),
+            ("llama-3.1-8b-instant", "GROQ LLAMA-3.1-8B"),
+        ],
+    },
+    "openrouter": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "env": "OPENROUTER_API_KEY",
+        "models": [
+            ("openrouter/free", "OPENROUTER AUTO-FREE"),
+            ("deepseek/deepseek-r1:free", "OPENROUTER DEEPSEEK-R1"),
+            ("meta-llama/llama-3.3-70b-instruct:free", "OPENROUTER LLAMA-3.3-70B"),
+            ("qwen/qwen3-32b:free", "OPENROUTER QWEN-3-32B"),
+        ],
+    },
+    "mistral": {
+        "url": "https://api.mistral.ai/v1/chat/completions",
+        "env": "MISTRAL_API_KEY",
+        "models": [
+            ("mistral-small-latest", "MISTRAL SMALL"),
+            ("codestral-latest", "MISTRAL CODESTRAL"),
+            ("open-mistral-nemo", "MISTRAL NEMO"),
+        ],
+    },
+}
+
+
 # ================= IN-MEMORY SOCIAL & AUTH STORE =================
-# Pre-seeded Commander account (you can also register any new User ID + Password from UI!)
 def hash_pw(pw: str) -> str:
     return hashlib.sha256(pw.encode("utf-8")).hexdigest()
+
 
 USERS_DB = {
     "mayank": {"password_hash": hash_pw("aris123"), "display_name": "Mayank (Founder)", "last_seen": 0.0},
     "janvi": {"password_hash": hash_pw("janvi123"), "display_name": "Janvi", "last_seen": 0.0},
 }
-SESSIONS = {}  # token -> user_id
-FRIEND_REQUESTS = []  # [{"from": u1, "to": u2, "status": "pending"|"accepted"}]
-DM_MESSAGES = []  # [{"id": int, "from": u1, "to": u2, "text": str, "ts": float, "read": bool}]
+SESSIONS = {}
+FRIEND_REQUESTS = []
+DM_MESSAGES = []
 
 
 class AuthPayload(BaseModel):
     user_id: str
     password: str
-    mode: str = "login"  # login | register
+    mode: str = "login"
 
 
 class FriendActionPayload(BaseModel):
@@ -127,12 +178,8 @@ async def social_overview(authorization: str = Header(default="")):
     me = get_current_user(authorization)
     now = time.time()
 
-    incoming_requests = [
-        r["from"] for r in FRIEND_REQUESTS if r["to"] == me and r["status"] == "pending"
-    ]
-    outgoing_requests = [
-        r["to"] for r in FRIEND_REQUESTS if r["from"] == me and r["status"] == "pending"
-    ]
+    incoming_requests = [r["from"] for r in FRIEND_REQUESTS if r["to"] == me and r["status"] == "pending"]
+    outgoing_requests = [r["to"] for r in FRIEND_REQUESTS if r["from"] == me and r["status"] == "pending"]
 
     friends = []
     total_unread = 0
@@ -240,7 +287,7 @@ async def send_dm_message(payload: DMPayload, authorization: str = Header(defaul
     return {"ok": True, "message": msg}
 
 
-# ================= V.S.E.P.R. MULTI-API AI BRAIN =================
+# ================= V.S.E.P.R. ALL-MODELS MULTI-API ENGINE =================
 def get_configured_providers() -> dict:
     return {
         "gemini": bool(os.environ.get("GEMINI_API_KEY", "").strip()),
@@ -260,7 +307,7 @@ def extract_speech_and_artifact(raw_text: str) -> tuple[str, str]:
     return speech_part, artifact
 
 
-async def call_gemini(messages: list) -> tuple[str, str]:
+async def call_gemini_model(model_id: str, label: str, messages: list) -> tuple[str, str]:
     key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not key:
         raise RuntimeError("No GEMINI_API_KEY")
@@ -271,7 +318,7 @@ async def call_gemini(messages: list) -> tuple[str, str]:
         role = "model" if m["role"] == "assistant" else "user"
         contents.append({"role": role, "parts": [{"text": m["content"]}]})
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent?key={key}"
     payload = {
         "systemInstruction": {"parts": [{"text": VSEPR_SYSTEM_PROMPT}]},
         "contents": contents,
@@ -281,7 +328,7 @@ async def call_gemini(messages: list) -> tuple[str, str]:
         r = await client.post(url, json=payload)
         r.raise_for_status()
         data = r.json()
-        return data["candidates"][0]["content"]["parts"][0]["text"], "GEMINI 2.5 FLASH"
+        return data["candidates"][0]["content"]["parts"][0]["text"], label
 
 
 async def call_openai_compatible(provider: str, url: str, key: str, model: str, label: str, messages: list) -> tuple[str, str]:
@@ -301,7 +348,17 @@ async def call_openai_compatible(provider: str, url: str, key: str, model: str, 
 
 @app.get("/api/status")
 async def get_system_status():
-    return {"providers": get_configured_providers(), "nodes": ECOSYSTEM_NODES}
+    return {
+        "providers": get_configured_providers(),
+        "nodes": ECOSYSTEM_NODES,
+        "model_counts": {
+            "gemini": len(GEMINI_MODELS),
+            "cerebras": len(PROVIDER_MODEL_POOLS["cerebras"]["models"]),
+            "groq": len(PROVIDER_MODEL_POOLS["groq"]["models"]),
+            "openrouter": len(PROVIDER_MODEL_POOLS["openrouter"]["models"]),
+            "mistral": len(PROVIDER_MODEL_POOLS["mistral"]["models"]),
+        },
+    }
 
 
 @app.post("/api/chat")
@@ -312,45 +369,40 @@ async def vsepr_brain_router(req: ChatRequest):
             messages.append({"role": h["role"], "content": h["content"]})
     messages.append({"role": "user", "content": req.prompt.strip()})
 
-    all_routes = [
-        ("gemini", lambda: call_gemini(messages)),
-        ("cerebras", lambda: call_openai_compatible(
-            "cerebras", "https://api.cerebras.ai/v1/chat/completions",
-            os.environ.get("CEREBRAS_API_KEY", "").strip(), "llama-3.3-70b", "CEREBRAS 70B", messages
-        )),
-        ("groq", lambda: call_openai_compatible(
-            "groq", "https://api.groq.com/openai/v1/chat/completions",
-            os.environ.get("GROQ_API_KEY", "").strip(), "openai/gpt-oss-120b", "GROQ GPT-OSS-120B", messages
-        )),
-        ("openrouter", lambda: call_openai_compatible(
-            "openrouter", "https://openrouter.ai/api/v1/chat/completions",
-            os.environ.get("OPENROUTER_API_KEY", "").strip(), "deepseek/deepseek-chat-v3-0324:free", "OPENROUTER DEEPSEEK-V3", messages
-        )),
-        ("mistral", lambda: call_openai_compatible(
-            "mistral", "https://api.mistral.ai/v1/chat/completions",
-            os.environ.get("MISTRAL_API_KEY", "").strip(), "mistral-small-latest", "MISTRAL SMALL", messages
-        )),
-        ("groq_fast", lambda: call_openai_compatible(
-            "groq", "https://api.groq.com/openai/v1/chat/completions",
-            os.environ.get("GROQ_API_KEY", "").strip(), "openai/gpt-oss-20b", "GROQ GPT-OSS-20B", messages
-        )),
-    ]
-
-    if req.preferred_provider != "auto":
-        all_routes.sort(key=lambda x: 0 if x[0].startswith(req.preferred_provider) else 1)
+    provider_order = ["gemini", "cerebras", "groq", "openrouter", "mistral"]
+    if req.preferred_provider in provider_order:
+        provider_order.remove(req.preferred_provider)
+        provider_order.insert(0, req.preferred_provider)
 
     errors = []
-    for name, fn in all_routes:
-        try:
-            full_text, brain_label = await fn()
-            speech_text, artifact = extract_speech_and_artifact(full_text)
-            return {"reply": full_text, "speech": speech_text, "artifact": artifact, "brain": brain_label, "ok": True}
-        except Exception as e:
-            errors.append(f"{name}: {str(e)[:70]}")
-            continue
+    for prov in provider_order:
+        if prov == "gemini":
+            if not os.environ.get("GEMINI_API_KEY", "").strip():
+                continue
+            for model_id, label in GEMINI_MODELS:
+                try:
+                    full_text, brain_label = await call_gemini_model(model_id, label, messages)
+                    speech_text, artifact = extract_speech_and_artifact(full_text)
+                    return {"reply": full_text, "speech": speech_text, "artifact": artifact, "brain": brain_label, "ok": True}
+                except Exception as e:
+                    errors.append(f"{label}: {str(e)[:60]}")
+        else:
+            pool = PROVIDER_MODEL_POOLS[prov]
+            api_key = os.environ.get(pool["env"], "").strip()
+            if not api_key:
+                continue
+            for model_id, label in pool["models"]:
+                try:
+                    full_text, brain_label = await call_openai_compatible(
+                        prov, pool["url"], api_key, model_id, label, messages
+                    )
+                    speech_text, artifact = extract_speech_and_artifact(full_text)
+                    return {"reply": full_text, "speech": speech_text, "artifact": artifact, "brain": brain_label, "ok": True}
+                except Exception as e:
+                    errors.append(f"{label}: {str(e)[:60]}")
 
     return {
-        "reply": f"Render Environment mein kam se kam ek free API key add karo! ({' | '.join(errors[:2])})",
+        "reply": f"Render Environment mein kam se kam ek free API key add karo! ({' | '.join(errors[:3])})",
         "speech": "Render environment mein koi active API key add karo taaki mera neural core online ho sake.",
         "artifact": "",
         "brain": "OFFLINE",
