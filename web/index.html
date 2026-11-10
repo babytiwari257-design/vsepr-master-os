@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>V.S.E.P.R. // SUPREME NEURAL WORKBENCH</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="bg-grid"></div>
+
+  <!-- TOP COMMAND & MULTI-API SWITCHBOARD -->
+  <header class="topbar glass">
+    <div class="brand">
+      <div class="pulse-dot"></div>
+      <div>
+        <h1>V.S.E.P.R. <span class="ver">OS // v1.0</span></h1>
+        <p class="subtitle">MULTI-API AUTONOMOUS NEURAL WORKBENCH</p>
+      </div>
+    </div>
+
+    <div class="api-strip" id="apiStrip">
+      <span class="api-pill" id="pill-gemini">GEMINI</span>
+      <span class="api-pill" id="pill-cerebras">CEREBRAS</span>
+      <span class="api-pill" id="pill-groq">GROQ</span>
+      <span class="api-pill" id="pill-openrouter">OPENROUTER</span>
+      <span class="api-pill" id="pill-mistral">MISTRAL</span>
+    </div>
+
+    <div class="controls-bar">
+      <select id="providerSelect" title="Select Active Brain">
+        <option value="auto">⚡ BRAIN: AUTO-ROUTER</option>
+        <option value="gemini">🧠 GEMINI 2.5 FLASH</option>
+        <option value="cerebras">🚀 CEREBRAS 70B</option>
+        <option value="groq">⚡ GROQ GPT-OSS-120B</option>
+        <option value="openrouter">🌐 OPENROUTER DEEPSEEK</option>
+        <option value="mistral">🔷 MISTRAL SMALL</option>
+      </select>
+
+      <select id="voiceSelect" title="Select Human Neural Voice">
+        <option value="hi-IN-MadhurNeural">🗣️ VOICE: MADHUR (HINGLISH)</option>
+        <option value="en-IN-NeerjaNeural">🗣️ VOICE: NEERJA (HINGLISH)</option>
+        <option value="en-GB-RyanNeural">🗣️ VOICE: RYAN (BRITISH)</option>
+        <option value="en-IN-PrabhatNeural">🗣️ VOICE: PRABHAT (INDIAN)</option>
+      </select>
+
+      <button id="continuousBtn" class="btn-chip" title="Hands-Free Continuous Voice Call Mode">🔄 HANDS-FREE: OFF</button>
+      <button id="audioToggleBtn" class="btn-chip active">🔊 AUDIO: LIVE</button>
+    </div>
+  </header>
+
+  <!-- MAIN DUAL-PANE WORKBENCH -->
+  <main class="workbench">
+    <!-- LEFT PANE: NEURAL ORB + HUMAN CONVERSATION + ECOSYSTEM NODES -->
+    <section class="left-pane glass">
+      <div class="orb-stage">
+        <canvas id="neuralOrb" width="220" height="110"></canvas>
+        <div class="orb-status" id="orbStatus">V.S.E.P.R. ONLINE // READY FOR COMMAND</div>
+      </div>
+
+      <!-- ECOSYSTEM QUICK-LINK BAR -->
+      <div class="node-dock">
+        <a href="https://aris-master-core.onrender.com/" target="_blank" class="node-btn">A.R.I.S.</a>
+        <a href="https://friday-aris.onrender.com/" target="_blank" class="node-btn">F.R.I.D.A.Y.</a>
+        <a href="https://project-omega-m1.onrender.com/" target="_blank" class="node-btn">OMEGA</a>
+        <a href="https://alpha-aris.onrender.com/" target="_blank" class="node-btn">A.L.P.H.A.</a>
+        <a href="https://titan-aris.onrender.com/" target="_blank" class="node-btn">TITAN</a>
+      </div>
+
+      <!-- LIVE CHAT & VOICE STREAM -->
+      <div class="chat-feed" id="chatFeed">
+        <div class="msg vsepr">
+          <div class="meta">◈ V.S.E.P.R. // NEURAL CORE</div>
+          System online, Mayank. Saare free neural engines synced hain — bolo kya solve karna hai aaj?
+        </div>
+      </div>
+
+      <!-- COMMAND INPUT DOCK -->
+      <div class="input-dock">
+        <button id="micBtn" class="btn-mic" title="Speak Command">🎙️</button>
+        <input type="text" id="promptInput" placeholder="Bolo ya type karo (Physics, Python, Strategy)..." autocomplete="off" />
+        <button id="sendBtn" class="btn-engage">ENGAGE</button>
+      </div>
+    </section>
+
+    <!-- RIGHT PANE: LIVE CODE, PHYSICS DERIVATION & BLUEPRINT PAD -->
+    <section class="right-pane glass">
+      <div class="pad-header">
+        <div>
+          <span class="pad-title">📐 LIVE ARTIFACT & DERIVATION PAD</span>
+          <span class="pad-sub" id="activeBrainTag">STANDBY</span>
+        </div>
+        <div class="pad-actions">
+          <button id="copyPadBtn" class="btn-small">📋 COPY</button>
+          <button id="downloadPadBtn" class="btn-small">⬇️ SAVE .TXT</button>
+          <button id="clearPadBtn" class="btn-small">🧹 CLEAR</button>
+        </div>
+      </div>
+
+      <pre class="artifact-screen" id="artifactScreen">// V.S.E.P.R. Workbench Pad Ready...
+// Jab bhi tum koi Python script, JEE physics derivation, ya system blueprint maangoge,
+// woh chat ko bharne ke bajaye yahan clean aur copy-ready format mein khulega.</pre>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
