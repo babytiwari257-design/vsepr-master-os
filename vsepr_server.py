@@ -1,17 +1,20 @@
 import os
 import io
 import re
+import time
+import hashlib
+import secrets
 import httpx
 import edge_tts
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
 load_dotenv()
 
-app = FastAPI(title="V.S.E.P.R. // Supreme ", version="1.0.0")
+app = FastAPI(title="V.S.E.P.R. OS // Neural Workbench + Pulse Social DM", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,7 +28,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 WEB_DIR = os.path.join(BASE_DIR, "web")
 os.makedirs(WEB_DIR, exist_ok=True)
 
-# Existing Ecosystem Nodes (100% untouched external links)
 ECOSYSTEM_NODES = {
     "aris": {"name": "A.R.I.S.", "role": "Master Tactical Core", "url": "https://aris-master-core.onrender.com/"},
     "friday": {"name": "F.R.I.D.A.Y.", "role": "Encrypted Vault & Comms", "url": "https://friday-aris.onrender.com/"},
@@ -36,13 +38,39 @@ ECOSYSTEM_NODES = {
 
 VSEPR_SYSTEM_PROMPT = (
     "You are V.S.E.P.R., an ultra-intelligent, next-generation AI collaborator and personal tactical co-pilot "
-    "engineered by Mayank. You are sharper, deeper, and more perceptive than standard AI assistants. "
-    "Tone & Style: Speak like a brilliant, grounded, empathetic human peer — mixing crisp natural Hinglish and English "
-    "effortlessly. Never sound robotic, repetitive, or overly formal. Give high-level, deeply insightful answers. "
-    "Formatting Rule: If your response includes Python code, mathematical/physics derivations, or a structured blueprint, "
-    "put ONLY that code/derivation inside a single markdown code block (```...```) so the user's right-hand Workbench Pad "
-    "displays it cleanly, while keeping your conversational explanation outside the block short, natural, and ready to be spoken aloud."
+    "engineered by Mayank. Speak like a brilliant, grounded, empathetic human peer — mixing crisp natural Hinglish and English. "
+    "If your response includes Python code, mathematical/physics derivations, or a structured blueprint, put ONLY that inside "
+    "a single markdown code block (```...```) so the right-hand Workbench Pad displays it cleanly, while keeping your spoken "
+    "explanation outside short and natural."
 )
+
+# ================= IN-MEMORY SOCIAL & AUTH STORE =================
+# Pre-seeded Commander account (you can also register any new User ID + Password from UI!)
+def hash_pw(pw: str) -> str:
+    return hashlib.sha256(pw.encode("utf-8")).hexdigest()
+
+USERS_DB = {
+    "mayank": {"password_hash": hash_pw("aris123"), "display_name": "Mayank (Founder)", "last_seen": 0.0},
+    "janvi": {"password_hash": hash_pw("janvi123"), "display_name": "Janvi", "last_seen": 0.0},
+}
+SESSIONS = {}  # token -> user_id
+FRIEND_REQUESTS = []  # [{"from": u1, "to": u2, "status": "pending"|"accepted"}]
+DM_MESSAGES = []  # [{"id": int, "from": u1, "to": u2, "text": str, "ts": float, "read": bool}]
+
+
+class AuthPayload(BaseModel):
+    user_id: str
+    password: str
+    mode: str = "login"  # login | register
+
+
+class FriendActionPayload(BaseModel):
+    target_id: str
+
+
+class DMPayload(BaseModel):
+    to_user: str
+    text: str
 
 
 class ChatRequest(BaseModel):
@@ -56,6 +84,163 @@ class TTSRequest(BaseModel):
     voice: str = "hi-IN-MadhurNeural"
 
 
+def get_current_user(authorization: str = Header(default="")) -> str:
+    token = authorization.replace("Bearer ", "").strip()
+    user_id = SESSIONS.get(token)
+    if not user_id or user_id not in USERS_DB:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    USERS_DB[user_id]["last_seen"] = time.time()
+    return user_id
+
+
+def are_friends(u1: str, u2: str) -> bool:
+    for r in FRIEND_REQUESTS:
+        if r["status"] == "accepted" and {r["from"], r["to"]} == {u1, u2}:
+            return True
+    return False
+
+
+# ================= AUTH & SOCIAL ENDPOINTS =================
+@app.post("/api/auth")
+async def auth_user(payload: AuthPayload):
+    uid = re.sub(r"[^a-zA-Z0-9_.]", "", payload.user_id.strip().lower())
+    pw = payload.password.strip()
+    if len(uid) < 3 or len(pw) < 3:
+        raise HTTPException(status_code=400, detail="User ID aur Password kam se kam 3 characters ke hone chahiye.")
+
+    if payload.mode == "register":
+        if uid in USERS_DB:
+            raise HTTPException(status_code=400, detail="Yeh User ID pehle se li ja chuki hai, koi aur try karo!")
+        USERS_DB[uid] = {"password_hash": hash_pw(pw), "display_name": uid.capitalize(), "last_seen": time.time()}
+    else:
+        if uid not in USERS_DB or USERS_DB[uid]["password_hash"] != hash_pw(pw):
+            raise HTTPException(status_code=401, detail="Galat User ID ya Password! Naya account banane ke liye 'Create Account' dabao.")
+
+    USERS_DB[uid]["last_seen"] = time.time()
+    token = secrets.token_hex(24)
+    SESSIONS[token] = uid
+    return {"token": token, "user_id": uid}
+
+
+@app.get("/api/social/overview")
+async def social_overview(authorization: str = Header(default="")):
+    me = get_current_user(authorization)
+    now = time.time()
+
+    incoming_requests = [
+        r["from"] for r in FRIEND_REQUESTS if r["to"] == me and r["status"] == "pending"
+    ]
+    outgoing_requests = [
+        r["to"] for r in FRIEND_REQUESTS if r["from"] == me and r["status"] == "pending"
+    ]
+
+    friends = []
+    total_unread = 0
+    for uid, info in USERS_DB.items():
+        if uid == me:
+            continue
+        if are_friends(me, uid):
+            unread = sum(1 for m in DM_MESSAGES if m["from"] == uid and m["to"] == me and not m["read"])
+            total_unread += unread
+            convo = [m for m in DM_MESSAGES if {m["from"], m["to"]} == {me, uid}]
+            last_msg = convo[-1]["text"] if convo else "Say hi! 👋"
+            is_online = (now - info["last_seen"]) < 25
+            friends.append({
+                "user_id": uid,
+                "online": is_online,
+                "unread": unread,
+                "last_msg": last_msg[:38],
+            })
+
+    return {
+        "me": me,
+        "friends": friends,
+        "incoming_requests": incoming_requests,
+        "outgoing_requests": outgoing_requests,
+        "total_unread": total_unread,
+        "all_users": [u for u in USERS_DB.keys() if u != me],
+    }
+
+
+@app.post("/api/social/request")
+async def send_friend_request(payload: FriendActionPayload, authorization: str = Header(default="")):
+    me = get_current_user(authorization)
+    target = payload.target_id.strip().lower()
+    if target == me or target not in USERS_DB:
+        raise HTTPException(status_code=404, detail="Yeh User ID nahi mili! Pehle unhe account banane bolo.")
+    if are_friends(me, target):
+        return {"message": "Tum dono pehle se connected ho!"}
+
+    for r in FRIEND_REQUESTS:
+        if r["from"] == target and r["to"] == me and r["status"] == "pending":
+            r["status"] = "accepted"
+            return {"message": f"@{target} ki request pehle se aayi thi — ab tum dono connected ho!"}
+        if r["from"] == me and r["to"] == target and r["status"] == "pending":
+            return {"message": "Request pehle hi bhej di gayi hai!"}
+
+    FRIEND_REQUESTS.append({"from": me, "to": target, "status": "pending"})
+    return {"message": f"@{target} ko follow/chat request bhej di gayi!"}
+
+
+@app.post("/api/social/accept")
+async def accept_friend_request(payload: FriendActionPayload, authorization: str = Header(default="")):
+    me = get_current_user(authorization)
+    sender = payload.target_id.strip().lower()
+    for r in FRIEND_REQUESTS:
+        if r["from"] == sender and r["to"] == me and r["status"] == "pending":
+            r["status"] = "accepted"
+            return {"message": f"@{sender} accepted! Ab DM chat khul gayi hai."}
+    raise HTTPException(status_code=404, detail="Pending request nahi mili.")
+
+
+@app.post("/api/social/decline")
+async def decline_friend_request(payload: FriendActionPayload, authorization: str = Header(default="")):
+    me = get_current_user(authorization)
+    sender = payload.target_id.strip().lower()
+    global FRIEND_REQUESTS
+    FRIEND_REQUESTS = [r for r in FRIEND_REQUESTS if not (r["from"] == sender and r["to"] == me and r["status"] == "pending")]
+    return {"message": "Request hata di gayi."}
+
+
+@app.get("/api/social/messages/{friend_id}")
+async def get_dm_thread(friend_id: str, authorization: str = Header(default="")):
+    me = get_current_user(authorization)
+    fid = friend_id.strip().lower()
+    if not are_friends(me, fid):
+        raise HTTPException(status_code=403, detail="Pehle friend request accept honi zaroori hai!")
+
+    thread = []
+    for m in DM_MESSAGES:
+        if {m["from"], m["to"]} == {me, fid}:
+            if m["to"] == me and not m["read"]:
+                m["read"] = True
+            thread.append(m)
+    return {"messages": thread[-80:], "online": (time.time() - USERS_DB[fid]["last_seen"]) < 25}
+
+
+@app.post("/api/social/send")
+async def send_dm_message(payload: DMPayload, authorization: str = Header(default="")):
+    me = get_current_user(authorization)
+    to_user = payload.to_user.strip().lower()
+    txt = payload.text.strip()
+    if not txt:
+        raise HTTPException(status_code=400, detail="Empty message")
+    if not are_friends(me, to_user):
+        raise HTTPException(status_code=403, detail="Pehle request accept hone do!")
+
+    msg = {
+        "id": len(DM_MESSAGES) + 1,
+        "from": me,
+        "to": to_user,
+        "text": txt,
+        "ts": time.time(),
+        "read": False,
+    }
+    DM_MESSAGES.append(msg)
+    return {"ok": True, "message": msg}
+
+
+# ================= V.S.E.P.R. MULTI-API AI BRAIN =================
 def get_configured_providers() -> dict:
     return {
         "gemini": bool(os.environ.get("GEMINI_API_KEY", "").strip()),
@@ -96,8 +281,7 @@ async def call_gemini(messages: list) -> tuple[str, str]:
         r = await client.post(url, json=payload)
         r.raise_for_status()
         data = r.json()
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
-        return text, "GEMINI 2.5 FLASH"
+        return data["candidates"][0]["content"]["parts"][0]["text"], "GEMINI 2.5 FLASH"
 
 
 async def call_openai_compatible(provider: str, url: str, key: str, model: str, label: str, messages: list) -> tuple[str, str]:
@@ -107,13 +291,7 @@ async def call_openai_compatible(provider: str, url: str, key: str, model: str, 
     if provider == "openrouter":
         headers["HTTP-Referer"] = "https://vsepr-master-os.onrender.com"
         headers["X-Title"] = "V.S.E.P.R. Master OS"
-
-    payload = {
-        "model": model,
-        "messages": messages,
-        "temperature": 0.72,
-        "max_tokens": 850,
-    }
+    payload = {"model": model, "messages": messages, "temperature": 0.72, "max_tokens": 850}
     async with httpx.AsyncClient(timeout=25.0) as client:
         r = await client.post(url, headers=headers, json=payload)
         r.raise_for_status()
@@ -123,10 +301,7 @@ async def call_openai_compatible(provider: str, url: str, key: str, model: str, 
 
 @app.get("/api/status")
 async def get_system_status():
-    return {
-        "providers": get_configured_providers(),
-        "nodes": ECOSYSTEM_NODES,
-    }
+    return {"providers": get_configured_providers(), "nodes": ECOSYSTEM_NODES}
 
 
 @app.post("/api/chat")
@@ -137,7 +312,6 @@ async def vsepr_brain_router(req: ChatRequest):
             messages.append({"role": h["role"], "content": h["content"]})
     messages.append({"role": "user", "content": req.prompt.strip()})
 
-    # Build ordered provider pipeline
     all_routes = [
         ("gemini", lambda: call_gemini(messages)),
         ("cerebras", lambda: call_openai_compatible(
@@ -170,24 +344,14 @@ async def vsepr_brain_router(req: ChatRequest):
         try:
             full_text, brain_label = await fn()
             speech_text, artifact = extract_speech_and_artifact(full_text)
-            return {
-                "reply": full_text,
-                "speech": speech_text,
-                "artifact": artifact,
-                "brain": brain_label,
-                "ok": True,
-            }
+            return {"reply": full_text, "speech": speech_text, "artifact": artifact, "brain": brain_label, "ok": True}
         except Exception as e:
             errors.append(f"{name}: {str(e)[:70]}")
             continue
 
     return {
-        "reply": (
-            "Mayank, abhi koi active free API key respond nahi kar rahi. "
-            "Render Environment mein kam se kam ek key (GEMINI_API_KEY, GROQ_API_KEY, CEREBRAS_API_KEY, ya OPENROUTER_API_KEY) add karo! "
-            f"Details: {' | '.join(errors[:2])}"
-        ),
-        "speech": "Mayank, Render environment mein koi active API key add karo taaki mera neural core online ho sake.",
+        "reply": f"Render Environment mein kam se kam ek free API key add karo! ({' | '.join(errors[:2])})",
+        "speech": "Render environment mein koi active API key add karo taaki mera neural core online ho sake.",
         "artifact": "",
         "brain": "OFFLINE",
         "ok": False,
@@ -196,9 +360,7 @@ async def vsepr_brain_router(req: ChatRequest):
 
 @app.post("/api/tts")
 async def human_voice_tts(req: TTSRequest):
-    clean = re.sub(r"[*#`>_~]", "", req.text).strip()[:650]
-    if not clean:
-        clean = "Ready for your command, Mayank."
+    clean = re.sub(r"[*#`>_~]", "", req.text).strip()[:650] or "Ready for your command, Mayank."
     comm = edge_tts.Communicate(clean, req.voice, rate="+2%", pitch="-1Hz")
     buf = io.BytesIO()
     async for chunk in comm.stream():
@@ -222,8 +384,6 @@ async def serve_vsepr_hud():
     html = read_web_file("index.html")
     css = read_web_file("style.css")
     js = read_web_file("app.js")
-    if not html:
-        return HTMLResponse("<h3>Step 3 pending: web/index.html banayein!</h3>")
     if css:
         html = html.replace('<link rel="stylesheet" href="/style.css" />', f"<style>{css}</style>")
         html = html.replace('<link rel="stylesheet" href="/style.css">', f"<style>{css}</style>")
