@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-app = FastAPI(title="V.S.E.P.R. OS // Multi-Model Neural Workbench + Pulse DM", version="2.1.0")
+app = FastAPI(title="V.S.E.P.R. OS // Hyper-Glow Neural Workbench + Pulse DM", version="3.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -39,9 +39,10 @@ ECOSYSTEM_NODES = {
 VSEPR_SYSTEM_PROMPT = (
     "You are V.S.E.P.R., an ultra-intelligent, next-generation AI collaborator and personal tactical co-pilot "
     "engineered by Mayank. Speak like a brilliant, grounded, empathetic human peer — mixing crisp natural Hinglish and English. "
-    "If your response includes Python code, mathematical/physics derivations, or a structured blueprint, put ONLY that inside "
-    "a single markdown code block (```...```) so the right-hand Workbench Pad displays it cleanly, while keeping your spoken "
-    "explanation outside short and natural."
+    "When writing physics or math equations, ALWAYS format inline math with $...$ and display equations with $$...$$ so KaTeX renders them cleanly. "
+    "If your response includes Python code, multi-step physics derivations, or a structured blueprint, put ONLY that inside "
+    "a single markdown code block (```...```) or $$...$$ display block so the right-hand Workbench Pad displays it cleanly, "
+    "while keeping your spoken explanation short, warm, and natural without emojis."
 )
 
 # ================= COMPLETE RESPECTIVE PROVIDER MODEL POOLS =================
@@ -190,7 +191,7 @@ async def social_overview(authorization: str = Header(default="")):
             unread = sum(1 for m in DM_MESSAGES if m["from"] == uid and m["to"] == me and not m["read"])
             total_unread += unread
             convo = [m for m in DM_MESSAGES if {m["from"], m["to"]} == {me, uid}]
-            last_msg = convo[-1]["text"] if convo else "Say hi! 👋"
+            last_msg = convo[-1]["text"] if convo else "Say hi!"
             is_online = (now - info["last_seen"]) < 25
             friends.append({
                 "user_id": uid,
@@ -287,6 +288,48 @@ async def send_dm_message(payload: DMPayload, authorization: str = Header(defaul
     return {"ok": True, "message": msg}
 
 
+# ================= CLEAN SPEECH & ARTIFACT EXTRACTION =================
+def strip_emojis_and_symbols(text: str) -> str:
+    # Remove all Unicode emojis, pictographs, dingbats, variation selectors, and LaTeX noise
+    emoji_pattern = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"
+        "\U0001F300-\U0001F5FF"
+        "\U0001F680-\U0001F6FF"
+        "\U0001F1E0-\U0001F1FF"
+        "\U00002700-\U000027BF"
+        "\U0001F900-\U0001F9FF"
+        "\U0001FA00-\U0001FAFF"
+        "\U00002600-\U000026FF"
+        "\U00002300-\U000023FF"
+        "\U00002B50-\U00002B55"
+        "\uFE0F\u200D"
+        "]+",
+        flags=re.UNICODE,
+    )
+    text = emoji_pattern.sub(" ", text)
+    text = re.sub(r"\$\$[\s\S]*?\$\$", " equation right side pad mein likh di hai ", text)
+    text = re.sub(r"\$[^$\n]+\$", " formula ", text)
+    text = re.sub(r"[*#`>_~\\{}^|]", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def extract_speech_and_artifact(raw_text: str) -> tuple[str, str]:
+    code_blocks = re.findall(r"```(?:\w+)?\n([\s\S]*?)```", raw_text)
+    math_blocks = re.findall(r"\$\$([\s\S]*?)\$\$", raw_text)
+
+    parts = []
+    if code_blocks:
+        parts.append("\n\n# ----------------------------------------\n\n".join(code_blocks).strip())
+    if math_blocks:
+        parts.append("$$" + "$$\n\n$$".join(m.strip() for m in math_blocks) + "$$")
+    artifact = "\n\n".join(parts).strip()
+
+    speech_part = re.sub(r"```[\s\S]*?```", " Maine code aur details right side ke Workbench Pad mein likh diye hain. ", raw_text)
+    speech_part = strip_emojis_and_symbols(speech_part)
+    return speech_part, artifact
+
+
 # ================= V.S.E.P.R. ALL-MODELS MULTI-API ENGINE =================
 def get_configured_providers() -> dict:
     return {
@@ -296,15 +339,6 @@ def get_configured_providers() -> dict:
         "openrouter": bool(os.environ.get("OPENROUTER_API_KEY", "").strip()),
         "mistral": bool(os.environ.get("MISTRAL_API_KEY", "").strip()),
     }
-
-
-def extract_speech_and_artifact(raw_text: str) -> tuple[str, str]:
-    code_blocks = re.findall(r"```(?:\w+)?\n([\s\S]*?)```", raw_text)
-    artifact = "\n\n# ----------------------------------------\n\n".join(code_blocks).strip() if code_blocks else ""
-    speech_part = re.sub(r"```[\s\S]*?```", " Maine code aur details right side ke Workbench Pad mein likh diye hain. ", raw_text)
-    speech_part = re.sub(r"[*#`>_~]", "", speech_part)
-    speech_part = re.sub(r"\s+", " ", speech_part).strip()
-    return speech_part, artifact
 
 
 async def call_gemini_model(model_id: str, label: str, messages: list) -> tuple[str, str]:
@@ -322,7 +356,7 @@ async def call_gemini_model(model_id: str, label: str, messages: list) -> tuple[
     payload = {
         "systemInstruction": {"parts": [{"text": VSEPR_SYSTEM_PROMPT}]},
         "contents": contents,
-        "generationConfig": {"temperature": 0.72, "maxOutputTokens": 900},
+        "generationConfig": {"temperature": 0.72, "maxOutputTokens": 950},
     }
     async with httpx.AsyncClient(timeout=25.0) as client:
         r = await client.post(url, json=payload)
@@ -338,7 +372,7 @@ async def call_openai_compatible(provider: str, url: str, key: str, model: str, 
     if provider == "openrouter":
         headers["HTTP-Referer"] = "https://vsepr-master-os.onrender.com"
         headers["X-Title"] = "V.S.E.P.R. Master OS"
-    payload = {"model": model, "messages": messages, "temperature": 0.72, "max_tokens": 850}
+    payload = {"model": model, "messages": messages, "temperature": 0.72, "max_tokens": 900}
     async with httpx.AsyncClient(timeout=25.0) as client:
         r = await client.post(url, headers=headers, json=payload)
         r.raise_for_status()
@@ -351,13 +385,6 @@ async def get_system_status():
     return {
         "providers": get_configured_providers(),
         "nodes": ECOSYSTEM_NODES,
-        "model_counts": {
-            "gemini": len(GEMINI_MODELS),
-            "cerebras": len(PROVIDER_MODEL_POOLS["cerebras"]["models"]),
-            "groq": len(PROVIDER_MODEL_POOLS["groq"]["models"]),
-            "openrouter": len(PROVIDER_MODEL_POOLS["openrouter"]["models"]),
-            "mistral": len(PROVIDER_MODEL_POOLS["mistral"]["models"]),
-        },
     }
 
 
@@ -412,7 +439,7 @@ async def vsepr_brain_router(req: ChatRequest):
 
 @app.post("/api/tts")
 async def human_voice_tts(req: TTSRequest):
-    clean = re.sub(r"[*#`>_~]", "", req.text).strip()[:650] or "Ready for your command, Mayank."
+    clean = strip_emojis_and_symbols(req.text)[:650] or "Ready for your command, Mayank."
     comm = edge_tts.Communicate(clean, req.voice, rate="+2%", pitch="-1Hz")
     buf = io.BytesIO()
     async for chunk in comm.stream():
