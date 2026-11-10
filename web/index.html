@@ -4,10 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>V.S.E.P.R. // SUPREME OS & PULSE DM</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
   <div class="bg-grid"></div>
+  <div class="aurora-orb orb-1"></div>
+  <div class="aurora-orb orb-2"></div>
+  <div class="aurora-orb orb-3"></div>
 
   <!-- SECURITY LOGIN / REGISTER GATE -->
   <div class="auth-gate" id="authGate">
@@ -33,7 +39,7 @@
     <div class="brand">
       <div class="pulse-dot"></div>
       <div>
-        <h1>V.S.E.P.R. <span class="ver">OS // v2.0</span></h1>
+        <h1>V.S.E.P.R. <span class="ver">OS // v3.0</span></h1>
         <p class="subtitle">LOGGED IN AS <span id="loggedUserLabel">@GUEST</span></p>
       </div>
     </div>
@@ -47,17 +53,16 @@
     </div>
 
     <div class="controls-bar">
-      <!-- INSTAGRAM-STYLE DM LAUNCHER WITH LIVE UNREAD BADGE -->
       <button id="openPulseBtn" class="btn-pulse">
         💬 PULSE DM <span class="unread-badge" id="globalUnreadBadge" style="display:none;">0</span>
       </button>
 
       <select id="providerSelect" title="Select Active Brain">
         <option value="auto">⚡ BRAIN: AUTO-ROUTER</option>
-        <option value="gemini">🧠 GEMINI 2.5 FLASH</option>
-        <option value="cerebras">🚀 CEREBRAS 70B</option>
+        <option value="gemini">🧠 GEMINI 2.5 FLASH/PRO</option>
         <option value="groq">⚡ GROQ GPT-OSS-120B</option>
-        <option value="openrouter">🌐 OPENROUTER DEEPSEEK</option>
+        <option value="openrouter">🌐 OPENROUTER FREE</option>
+        <option value="cerebras">🚀 CEREBRAS 70B</option>
         <option value="mistral">🔷 MISTRAL SMALL</option>
       </select>
 
@@ -78,7 +83,7 @@
   <main class="workbench">
     <section class="left-pane glass">
       <div class="orb-stage">
-        <canvas id="neuralOrb" width="220" height="105"></canvas>
+        <canvas id="neuralOrb" width="240" height="105"></canvas>
         <div class="orb-status" id="orbStatus">V.S.E.P.R. ONLINE // READY FOR COMMAND</div>
       </div>
 
@@ -93,13 +98,13 @@
       <div class="chat-feed" id="chatFeed">
         <div class="msg vsepr">
           <div class="meta">◈ V.S.E.P.R. // NEURAL CORE</div>
-          System unlocked! Saare free neural engines aur Pulse DM app ready hain — bolo kya karna hai?
+          System unlocked! Saare neural engines, clean voice aur OMEGA equation renderer ready hain — bolo kya karna hai?
         </div>
       </div>
 
       <div class="input-dock">
         <button id="micBtn" class="btn-mic" title="Speak Command">🎙️</button>
-        <input type="text" id="promptInput" placeholder="Bolo ya type karo (Physics, Python, Strategy)..." autocomplete="off" />
+        <input type="text" id="promptInput" placeholder="Bolo ya type karo (Physics derivations, Python, Strategy)..." autocomplete="off" />
         <button id="sendBtn" class="btn-engage">ENGAGE</button>
       </div>
     </section>
@@ -116,8 +121,8 @@
           <button id="clearPadBtn" class="btn-small">🧹 CLEAR</button>
         </div>
       </div>
-      <pre class="artifact-screen" id="artifactScreen">// V.S.E.P.R. Workbench Pad Ready...
-// Code, JEE Physics derivations, aur system blueprints yahan clean khulenge.</pre>
+      <div class="artifact-screen" id="artifactScreen">// V.S.E.P.R. Workbench Pad Ready...
+// Code, JEE Physics derivations, aur system blueprints yahan crystal-clear render honge.</div>
     </section>
   </main>
 
@@ -131,20 +136,17 @@
       <button id="closePulseBtn" class="btn-small">✕ CLOSE</button>
     </div>
 
-    <!-- SEND FRIEND / FOLLOW REQUEST BAR -->
     <div class="req-search-box">
       <input type="text" id="friendSearchInput" placeholder="Enter User ID to send request (e.g. janvi)..." />
       <button id="sendReqBtn" class="btn-engage" style="padding: 8px 12px; font-size: 11px;">+ SEND REQUEST</button>
     </div>
     <div class="req-feedback" id="reqFeedback"></div>
 
-    <!-- INCOMING REQUESTS (ACCEPT / DECLINE) -->
     <div class="incoming-box" id="incomingBox" style="display:none;">
       <div class="section-label">🔔 NEW FOLLOW / CHAT REQUESTS</div>
       <div id="incomingList"></div>
     </div>
 
-    <!-- INSTAGRAM-STYLE SPLIT: FRIENDS LIST + DIRECT CHAT -->
     <div class="pulse-body">
       <div class="friends-col">
         <div class="section-label">DIRECT CHATS</div>
