@@ -25,6 +25,18 @@ const activeBrainTag = document.getElementById("activeBrainTag");
 const canvas = document.getElementById("neuralOrb");
 const ctx = canvas.getContext("2d");
 
+function renderMathCleanly(el) {
+  if (window.renderMathInElement && el) {
+    renderMathInElement(el, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false }
+      ],
+      throwOnError: false
+    });
+  }
+}
+
 // ================= 1. LOGIN & REGISTER GATE =================
 const authGate = document.getElementById("authGate");
 const authError = document.getElementById("authError");
@@ -137,7 +149,7 @@ async function loadDmMessages() {
 
     dmMessages.innerHTML = "";
     if (!data.messages.length) {
-      dmMessages.innerHTML = `<div class="dm-empty">Say hello to @${activeFriendId}! 👋</div>`;
+      dmMessages.innerHTML = `<div class="dm-empty">Say hello to @${activeFriendId}!</div>`;
       return;
     }
     data.messages.forEach((m) => {
@@ -179,7 +191,6 @@ async function pollSocialOverview() {
     }
     const data = await res.json();
 
-    // Update 4+ Unread & Request Notification Badge
     const totalAlerts = (data.total_unread || 0) + (data.incoming_requests?.length || 0);
     if (totalAlerts > 0) {
       globalUnreadBadge.style.display = "inline-block";
@@ -188,7 +199,6 @@ async function pollSocialOverview() {
       globalUnreadBadge.style.display = "none";
     }
 
-    // Incoming Requests
     const incBox = document.getElementById("incomingBox");
     const incList = document.getElementById("incomingList");
     if (data.incoming_requests && data.incoming_requests.length > 0) {
@@ -208,7 +218,6 @@ async function pollSocialOverview() {
       incBox.style.display = "none";
     }
 
-    // Friends List with Live Online Dot & Unread Count
     const friendsList = document.getElementById("friendsList");
     friendsList.innerHTML = "";
     (data.friends || []).forEach((f) => {
@@ -242,35 +251,35 @@ function drawOrb() {
   const h = canvas.height;
   ctx.clearRect(0, 0, w, h);
 
-  let energy = 0.16;
+  let energy = 0.22;
   if (orbMode === "speaking" && analyser && dataArray) {
     analyser.getByteFrequencyData(dataArray);
     let sum = 0;
     for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-    energy = Math.max(0.22, (sum / dataArray.length) / 85);
+    energy = Math.max(0.28, (sum / dataArray.length) / 80);
   } else if (orbMode === "listening") {
-    energy = 0.55 + Math.sin(phase * 2) * 0.2;
+    energy = 0.6 + Math.sin(phase * 2) * 0.2;
   } else if (orbMode === "thinking") {
-    energy = 0.45 + Math.cos(phase * 3) * 0.25;
+    energy = 0.5 + Math.cos(phase * 3) * 0.25;
   }
 
   const color =
     orbMode === "listening" ? "#f43f5e" :
-    orbMode === "thinking" ? "#f59e0b" :
+    orbMode === "thinking" ? "#fbbf24" :
     orbMode === "speaking" ? "#22d3ee" : "#e879f9";
 
   ctx.beginPath();
-  ctx.lineWidth = 2.6;
+  ctx.lineWidth = 3;
   ctx.strokeStyle = color;
-  ctx.shadowBlur = 14;
+  ctx.shadowBlur = 18;
   ctx.shadowColor = color;
 
   for (let x = 15; x < w - 15; x++) {
     const norm = (x - w / 2) / (w / 2);
     const envelope = Math.cos(norm * (Math.PI / 2));
     const wave =
-      Math.sin(x * 0.07 + phase) * 18 * energy * envelope +
-      Math.cos(x * 0.15 - phase * 1.6) * 8 * energy * envelope;
+      Math.sin(x * 0.07 + phase) * 19 * energy * envelope +
+      Math.cos(x * 0.15 - phase * 1.6) * 9 * energy * envelope;
     const y = h / 2 + wave;
     if (x === 15) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
@@ -303,9 +312,10 @@ refreshApiStatus();
 function appendMessage(role, text, metaLabel) {
   const div = document.createElement("div");
   div.className = `msg ${role}`;
-  const cleanDisplay = text.replace(/```[\s\S]*?```/g, "\n[📐 Code / Derivation sent to Right Workbench Pad]").trim();
+  const cleanDisplay = text.replace(/```[\s\S]*?```/g, "\n[Code / Derivation sent to Right Workbench Pad]").trim();
   div.innerHTML = `<div class="meta">◈ ${metaLabel}</div>${cleanDisplay.replace(/</g, "&lt;").replace(/>/g, "&gt;")}`;
   chatFeed.appendChild(div);
+  renderMathCleanly(div);
   chatFeed.scrollTop = chatFeed.scrollHeight;
 }
 
@@ -403,7 +413,10 @@ async function sendPrompt(customText = null) {
     activeBrainTag.textContent = brainUsed;
     appendMessage("vsepr", data.reply, `V.S.E.P.R. // ${brainUsed}`);
 
-    if (data.artifact) artifactScreen.textContent = data.artifact;
+    if (data.artifact) {
+      artifactScreen.textContent = data.artifact;
+      renderMathCleanly(artifactScreen);
+    }
 
     speakHuman(data.speech, () => {
       if (continuousVoice) startListening();
