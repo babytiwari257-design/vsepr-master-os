@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-app = FastAPI(title="V.S.E.P.R. OS // Hyper-Glow Neural Workbench + Pulse DM", version="3.0.0")
+app = FastAPI(title="V.S.E.P.R. OS // Hyper-Glow Neural Workbench + Pulse DM", version="3.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -290,7 +290,6 @@ async def send_dm_message(payload: DMPayload, authorization: str = Header(defaul
 
 # ================= CLEAN SPEECH & ARTIFACT EXTRACTION =================
 def strip_emojis_and_symbols(text: str) -> str:
-    # Remove all Unicode emojis, pictographs, dingbats, variation selectors, and LaTeX noise
     emoji_pattern = re.compile(
         "["
         "\U0001F600-\U0001F64F"
@@ -309,14 +308,16 @@ def strip_emojis_and_symbols(text: str) -> str:
     )
     text = emoji_pattern.sub(" ", text)
     text = re.sub(r"\$\$[\s\S]*?\$\$", " equation right side pad mein likh di hai ", text)
+    text = re.sub(r"\\\[[\s\S]*?\\\]", " equation right side pad mein likh di hai ", text)
     text = re.sub(r"\$[^$\n]+\$", " formula ", text)
+    text = re.sub(r"\\\([\s\S]*?\\\)", " formula ", text)
     text = re.sub(r"[*#`>_~\\{}^|]", " ", text)
     return re.sub(r"\s+", " ", text).strip()
 
 
 def extract_speech_and_artifact(raw_text: str) -> tuple[str, str]:
     code_blocks = re.findall(r"```(?:\w+)?\n([\s\S]*?)```", raw_text)
-    math_blocks = re.findall(r"\$\$([\s\S]*?)\$\$", raw_text)
+    math_blocks = re.findall(r"(?:\$\$|\\\[)([\s\S]*?)(?:\$\$|\\\])", raw_text)
 
     parts = []
     if code_blocks:
@@ -324,6 +325,10 @@ def extract_speech_and_artifact(raw_text: str) -> tuple[str, str]:
     if math_blocks:
         parts.append("$$" + "$$\n\n$$".join(m.strip() for m in math_blocks) + "$$")
     artifact = "\n\n".join(parts).strip()
+
+    # Fallback: if there are no code/display blocks but inline formulas exist, send full derivation to right pad
+    if not artifact and (r"\(" in raw_text or "$" in raw_text):
+        artifact = raw_text.strip()
 
     speech_part = re.sub(r"```[\s\S]*?```", " Maine code aur details right side ke Workbench Pad mein likh diye hain. ", raw_text)
     speech_part = strip_emojis_and_symbols(speech_part)
@@ -356,9 +361,9 @@ async def call_gemini_model(model_id: str, label: str, messages: list) -> tuple[
     payload = {
         "systemInstruction": {"parts": [{"text": VSEPR_SYSTEM_PROMPT}]},
         "contents": contents,
-        "generationConfig": {"temperature": 0.72, "maxOutputTokens": 950},
+        "generationConfig": {"temperature": 0.72, "maxOutputTokens": 2500},
     }
-    async with httpx.AsyncClient(timeout=25.0) as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         r = await client.post(url, json=payload)
         r.raise_for_status()
         data = r.json()
@@ -372,8 +377,8 @@ async def call_openai_compatible(provider: str, url: str, key: str, model: str, 
     if provider == "openrouter":
         headers["HTTP-Referer"] = "https://vsepr-master-os.onrender.com"
         headers["X-Title"] = "V.S.E.P.R. Master OS"
-    payload = {"model": model, "messages": messages, "temperature": 0.72, "max_tokens": 900}
-    async with httpx.AsyncClient(timeout=25.0) as client:
+    payload = {"model": model, "messages": messages, "temperature": 0.72, "max_tokens": 2500}
+    async with httpx.AsyncClient(timeout=30.0) as client:
         r = await client.post(url, headers=headers, json=payload)
         r.raise_for_status()
         data = r.json()
