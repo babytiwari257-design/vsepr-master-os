@@ -22,7 +22,7 @@
       <h2 class="auth-title">V.S.E.P.R. // ACCESS PORTAL</h2>
       <p class="auth-sub">ENTER USER ID & PASSWORD TO UNLOCK NEURAL CORE & PULSE DM</p>
 
-      <input type="text" id="authUserId" placeholder="User ID (e.g. mayank ya janvi)" autocomplete="off" />
+      <input type="text" id="authUserId" placeholder="User ID (e.g. mayank)" autocomplete="off" />
       <input type="password" id="authPassword" placeholder="Password" />
       <div class="auth-err" id="authError"></div>
 
@@ -30,7 +30,7 @@
         <button id="loginBtn" class="btn-engage" style="padding: 11px;">🔓 UNLOCK & LOGIN</button>
         <button id="registerBtn" class="btn-chip" style="padding: 10px;">✨ CREATE NEW USER ID</button>
       </div>
-      <p class="auth-hint">Default IDs ready: <b>mayank</b> / <b>aris123</b> &nbsp;|&nbsp; <b>janvi</b> / <b>janvi123</b> (ya apni nayi ID banao)</p>
+      <p class="auth-hint">Default ID: <b>mayank</b> / <b>aris123</b> (ya apni nayi ID create karo)</p>
     </div>
   </div>
 
@@ -39,7 +39,7 @@
     <div class="brand">
       <div class="pulse-dot"></div>
       <div>
-        <h1>V.S.E.P.R. <span class="ver">OS // v3.1</span></h1>
+        <h1>V.S.E.P.R. <span class="ver">OS // v3.2</span></h1>
         <p class="subtitle">LOGGED IN AS <span id="loggedUserLabel">@GUEST</span></p>
       </div>
     </div>
@@ -68,7 +68,8 @@
 
       <select id="voiceSelect" title="Select Human Neural Voice">
         <option value="hi-IN-MadhurNeural">🗣️ MADHUR (HINGLISH)</option>
-        <option value="en-IN-NeerjaNeural">🗣️ NEERJA (HINGLISH)</option>
+        <option value="en-IN-NeerjaExpressiveNeural">🗣️ NEERJA EXPRESSIVE</option>
+        <option value="en-IN-NeerjaNeural">🗣️ NEERJA (INDIAN)</option>
         <option value="en-GB-RyanNeural">🗣️ RYAN (BRITISH)</option>
         <option value="en-IN-PrabhatNeural">🗣️ PRABHAT (INDIAN)</option>
       </select>
@@ -98,13 +99,21 @@
       <div class="chat-feed" id="chatFeed">
         <div class="msg vsepr">
           <div class="meta">◈ V.S.E.P.R. // NEURAL CORE</div>
-          System unlocked! Saare neural engines, clean voice aur OMEGA equation renderer ready hain — bolo kya karna hai?
+          System unlocked! Natural human voice engine aur dedicated task router ready hain — bolo kya kaam karna hai?
         </div>
+      </div>
+
+      <!-- DEDICATED TASK QUICK-TRIGGER BAR -->
+      <div class="node-dock" style="padding: 6px 12px 0; gap: 6px;">
+        <button type="button" class="btn-small" onclick="runDedicatedTask('code')">💻 CODE</button>
+        <button type="button" class="btn-small" onclick="runDedicatedTask('physics')">⚛️ PHYSICS</button>
+        <button type="button" class="btn-small" onclick="runDedicatedTask('notes')">📝 NOTES</button>
+        <button type="button" class="btn-small" onclick="runDedicatedTask('plan')">🗺️ PLAN</button>
       </div>
 
       <div class="input-dock">
         <button id="micBtn" class="btn-mic" title="Speak Command">🎙️</button>
-        <input type="text" id="promptInput" placeholder="Bolo ya type karo (Physics derivations, Python, Strategy)..." autocomplete="off" />
+        <input type="text" id="promptInput" placeholder="Bolo ya type karo (ya /code, /physics, /notes, /plan use karo)..." autocomplete="off" />
         <button id="sendBtn" class="btn-engage">ENGAGE</button>
       </div>
     </section>
@@ -122,7 +131,7 @@
         </div>
       </div>
       <div class="artifact-screen" id="artifactScreen">// V.S.E.P.R. Workbench Pad Ready...
-// Code, JEE Physics derivations, aur system blueprints yahan crystal-clear render honge.</div>
+// Code, JEE Physics derivations, study notes aur blueprints yahan crystal-clear render honge.</div>
     </section>
   </main>
 
@@ -137,7 +146,7 @@
     </div>
 
     <div class="req-search-box">
-      <input type="text" id="friendSearchInput" placeholder="Enter User ID to send request (e.g. janvi)..." />
+      <input type="text" id="friendSearchInput" placeholder="Enter User ID to send request (e.g. alex)..." />
       <button id="sendReqBtn" class="btn-engage" style="padding: 8px 12px; font-size: 11px;">+ SEND REQUEST</button>
     </div>
     <div class="req-feedback" id="reqFeedback"></div>
