@@ -1,6 +1,7 @@
 let authToken = localStorage.getItem("vsepr_token") || "";
 let currentUser = localStorage.getItem("vsepr_user") || "";
 let activeFriendId = "";
+let activeTaskMode = "auto";
 
 let audioEnabled = true;
 let continuousVoice = false;
@@ -297,7 +298,7 @@ function setOrbState(state, label) {
   if (orbStatus && label) orbStatus.textContent = label;
 }
 
-// ================= 4. V.S.E.P.R. MULTI-API AI ROUTER & VOICE =================
+// ================= 4. V.S.E.P.R. MULTI-API AI ROUTER, DEDICATED TASKS & HUMAN VOICE =================
 async function refreshApiStatus() {
   try {
     const res = await fetch("/api/status");
@@ -314,7 +315,7 @@ refreshApiStatus();
 function appendMessage(role, text, metaLabel) {
   const div = document.createElement("div");
   div.className = `msg ${role}`;
-  const cleanDisplay = text.replace(/```[\s\S]*?```/g, "\n[Code / Derivation sent to Right Workbench Pad]").trim();
+  const cleanDisplay = text.replace(/```[\s\S]*?```/g, "\n[Deliverable sent to Right Workbench Pad]").trim();
   div.innerHTML = `<div class="meta">◈ ${metaLabel}</div>${cleanDisplay.replace(/</g, "&lt;").replace(/>/g, "&gt;")}`;
   chatFeed.appendChild(div);
   renderMathCleanly(div);
@@ -352,7 +353,10 @@ async function speakHuman(text, onDoneCallback) {
     if (onDoneCallback) onDoneCallback();
     return;
   }
-  if (activeAudio) activeAudio.pause();
+  if (activeAudio) {
+    activeAudio.pause();
+    activeAudio = null;
+  }
   setOrbState("speaking", "V.S.E.P.R. SPEAKING...");
 
   try {
@@ -363,57 +367,91 @@ async function speakHuman(text, onDoneCallback) {
     });
     if (!res.ok) throw new Error("TTS failed");
     const blob = await res.blob();
-    activeAudio = new Audio(URL.createObjectURL(blob));
+    const audioUrl = URL.createObjectURL(blob);
+    const audio = new Audio(audioUrl);
+    activeAudio = audio;
 
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === "suspended") await audioCtx.resume();
 
-    const src = audioCtx.createMediaElementSource(activeAudio);
+    const src = audioCtx.createMediaElementSource(audio);
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = 64;
     dataArray = new Uint8Array(analyser.frequencyBinCount);
     src.connect(analyser);
     analyser.connect(audioCtx.destination);
 
-    activeAudio.onended = () => {
+    const cleanup = () => {
+      URL.revokeObjectURL(audioUrl);
       setOrbState("idle", "V.S.E.P.R. ONLINE // READY");
       if (onDoneCallback) onDoneCallback();
     };
-    activeAudio.onerror = () => {
-      setOrbState("idle", "V.S.E.P.R. ONLINE // READY");
-      if (onDoneCallback) onDoneCallback();
-    };
-    await activeAudio.play();
+
+    audio.onended = cleanup;
+    audio.onerror = cleanup;
+    await audio.play();
   } catch (e) {
     setOrbState("idle", "V.S.E.P.R. ONLINE // READY");
     if (onDoneCallback) onDoneCallback();
   }
 }
 
-async function sendPrompt(customText = null) {
-  const prompt = (customText !== null ? customText : promptInput.value).trim();
-  if (!prompt) return;
+// Parse slash commands like "/code build a timer" or "/physics derive escape velocity"
+function parseCommandPrefix(rawPrompt) {
+  const match = rawPrompt.match(/^\/(code|physics|notes|plan)\s+([\s\S]+)$/i);
+  if (match) {
+    return { mode: match[1].toLowerCase(), cleanPrompt: match[2].trim() };
+  }
+  return { mode: activeTaskMode, cleanPrompt: rawPrompt };
+}
+
+window.runDedicatedTask = function(mode, customPrompt = null) {
+  activeTaskMode = mode;
+  if (customPrompt) {
+    sendPrompt(customPrompt, mode);
+  } else {
+    setOrbState("idle", `TASK MODE ARMED: ${mode.toUpperCase()}`);
+    promptInput.focus();
+  }
+};
+
+async function sendPrompt(customText = null, forcedMode = null) {
+  const rawInput = (customText !== null ? customText : promptInput.value).trim();
+  if (!rawInput) return;
   if (customText === null) promptInput.value = "";
 
+  const parsed = parseCommandPrefix(rawInput);
+  const taskModeToSend = forcedMode || parsed.mode;
+  const prompt = parsed.cleanPrompt;
+
   if (activeAudio) activeAudio.pause();
-  appendMessage("user", prompt, `${currentUser.toUpperCase()} // COMMAND`);
-  setOrbState("thinking", "ROUTING ACROSS NEURAL ENGINES...");
+  appendMessage("user", prompt, `${currentUser.toUpperCase()} // ${taskModeToSend !== "auto" ? taskModeToSend.toUpperCase() : "COMMAND"}`);
+  setOrbState("thinking", `EXECUTING ${taskModeToSend.toUpperCase()} ROUTINE...`);
 
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, history: chatHistory, preferred_provider: providerSelect.value })
+      body: JSON.stringify({
+        prompt,
+        history: chatHistory,
+        preferred_provider: providerSelect.value,
+        task_mode: taskModeToSend
+      })
     });
     const data = await res.json();
+
+    // Reset one-shot task mode back to auto after execution
+    activeTaskMode = "auto";
 
     chatHistory.push({ role: "user", content: prompt });
     chatHistory.push({ role: "assistant", content: data.reply });
     if (chatHistory.length > 12) chatHistory = chatHistory.slice(-12);
 
     const brainUsed = data.brain || "V.S.E.P.R. CORE";
-    activeBrainTag.textContent = brainUsed;
-    appendMessage("vsepr", data.reply, `V.S.E.P.R. // ${brainUsed}`);
+    const taskTag = data.task_mode && data.task_mode !== "GENERAL" ? ` • [${data.task_mode}]` : "";
+    activeBrainTag.textContent = `${brainUsed}${taskTag}`;
+    appendMessage("vsepr", data.reply, `V.S.E.P.R. // ${brainUsed}${taskTag}`);
 
     if (data.artifact) {
       artifactScreen.textContent = data.artifact;
