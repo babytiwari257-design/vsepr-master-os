@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-app = FastAPI(title="V.S.E.P.R. OS // Hyper-Glow Neural Workbench + Pulse DM", version="3.1.0")
+app = FastAPI(title="V.S.E.P.R. OS ", version="3.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,13 +37,42 @@ ECOSYSTEM_NODES = {
 }
 
 VSEPR_SYSTEM_PROMPT = (
-    "You are V.S.E.P.R., an ultra-intelligent, next-generation AI collaborator and personal tactical co-pilot "
-    "engineered by Mayank. Speak like a brilliant, grounded, empathetic human peer — mixing crisp natural Hinglish and English. "
-    "When writing physics or math equations, ALWAYS format inline math with $...$ and display equations with $$...$$ so KaTeX renders them cleanly. "
-    "If your response includes Python code, multi-step physics derivations, or a structured blueprint, put ONLY that inside "
-    "a single markdown code block (```...```) or $$...$$ display block so the right-hand Workbench Pad displays it cleanly, "
-    "while keeping your spoken explanation short, warm, and natural without emojis."
+    "You are V.S.E.P.R., an ultra-intelligent, grounded AI co-pilot and personal workbench assistant engineered by Mayank. "
+    "You MUST structure EVERY response into two clear tags so the user hears natural human speech while seeing structured work on the right pad:\n\n"
+    "[SPEECH]\n"
+    "Write 2 to 5 warm, natural, conversational sentences in smooth Hinglish (or English if asked). "
+    "Speak like a real human friend and smart teammate—use natural pauses with commas and ellipses (...). "
+    "NEVER put code, markdown symbols (*, #, `), bullet points, emojis, or LaTeX math symbols ($, \\) inside [SPEECH]. "
+    "If you wrote code, formulas, notes, or a plan in [WORKBENCH], casually mention in [SPEECH] that you've placed the complete work on the right Workbench Pad and explain the core idea simply.\n"
+    "[/SPEECH]\n\n"
+    "[WORKBENCH]\n"
+    "Put the complete, high-precision deliverable here ONLY when the task involves code, physics/math derivations (use $...$ and $$...$$), study notes, blueprints, or structured lists. "
+    "If it is just a casual conversation or quick question with no deliverable needed, leave [WORKBENCH] empty.\n"
+    "[/WORKBENCH]"
 )
+
+DEDICATED_TASK_INSTRUCTIONS = {
+    "code": (
+        "\n\n[ACTIVE DEDICATED MODE: CODE BUILDER]\n"
+        "The user wants working, production-ready code. Write clean, well-commented, bug-free code inside [WORKBENCH] "
+        "using a single markdown code block. Keep [SPEECH] concise, explaining how to run it and what it does."
+    ),
+    "physics": (
+        "\n\n[ACTIVE DEDICATED MODE: JEE / PHYSICS DERIVATION ENGINE]\n"
+        "Solve or derive the physics/math problem step-by-step with crystal clarity inside [WORKBENCH]. "
+        "Use $$...$$ for display equations and $...$ for inline variables. In [SPEECH], explain the physical intuition like a great teacher."
+    ),
+    "notes": (
+        "\n\n[ACTIVE DEDICATED MODE: STRUCTURED STUDY & REVISION NOTES]\n"
+        "Create crisp, high-retention exam/revision notes with clear headings, key formulas, and memory hooks inside [WORKBENCH]. "
+        "In [SPEECH], give a quick spoken summary of the most important takeaway."
+    ),
+    "plan": (
+        "\n\n[ACTIVE DEDICATED MODE: TACTICAL BLUEPRINT & EXECUTION PLAN]\n"
+        "Build a concrete, step-by-step actionable blueprint, architecture, or schedule inside [WORKBENCH]. "
+        "In [SPEECH], walk the user through Phase 1 naturally."
+    ),
+}
 
 # ================= COMPLETE RESPECTIVE PROVIDER MODEL POOLS =================
 GEMINI_MODELS = [
@@ -103,7 +132,6 @@ def hash_pw(pw: str) -> str:
 
 USERS_DB = {
     "mayank": {"password_hash": hash_pw("aris123"), "display_name": "Mayank (Founder)", "last_seen": 0.0},
-    "janvi": {"password_hash": hash_pw("janvi123"), "display_name": "Janvi", "last_seen": 0.0},
 }
 SESSIONS = {}
 FRIEND_REQUESTS = []
@@ -129,6 +157,7 @@ class ChatRequest(BaseModel):
     prompt: str
     history: list = []
     preferred_provider: str = "auto"
+    task_mode: str = "auto"
 
 
 class TTSRequest(BaseModel):
@@ -288,8 +317,24 @@ async def send_dm_message(payload: DMPayload, authorization: str = Header(defaul
     return {"ok": True, "message": msg}
 
 
-# ================= CLEAN SPEECH & ARTIFACT EXTRACTION =================
-def strip_emojis_and_symbols(text: str) -> str:
+# ================= DEDICATED TASK DETECTOR & NATURAL SPEECH PARSER =================
+def detect_task_mode(prompt: str, requested_mode: str = "auto") -> str:
+    if requested_mode and requested_mode != "auto" and requested_mode in DEDICATED_TASK_INSTRUCTIONS:
+        return requested_mode
+
+    p = prompt.lower()
+    if any(k in p for k in ["code", "script", "python", "html", "javascript", "function", "program", "bug fix", "debug"]):
+        return "code"
+    if any(k in p for k in ["derive", "derivation", "equation", "physics", "quantum", "mechanics", "numerical", "jee", "integral", "formula"]):
+        return "physics"
+    if any(k in p for k in ["notes", "summarize", "summary", "revision", "chapter", "explain in detail", "study material"]):
+        return "notes"
+    if any(k in p for k in ["plan", "blueprint", "roadmap", "architecture", "schedule", "strategy", "steps"]):
+        return "plan"
+    return "general"
+
+
+def clean_for_human_speech(text: str) -> str:
     emoji_pattern = re.compile(
         "["
         "\U0001F600-\U0001F64F"
@@ -307,15 +352,41 @@ def strip_emojis_and_symbols(text: str) -> str:
         flags=re.UNICODE,
     )
     text = emoji_pattern.sub(" ", text)
-    text = re.sub(r"\$\$[\s\S]*?\$\$", " equation right side pad mein likh di hai ", text)
-    text = re.sub(r"\\\[[\s\S]*?\\\]", " equation right side pad mein likh di hai ", text)
-    text = re.sub(r"\$[^$\n]+\$", " formula ", text)
-    text = re.sub(r"\\\([\s\S]*?\\\)", " formula ", text)
-    text = re.sub(r"[*#`>_~\\{}^|]", " ", text)
+    # Remove any accidental code blocks or LaTeX inside speech
+    text = re.sub(r"```[\s\S]*?```", " ", text)
+    text = re.sub(r"\$\$[\s\S]*?\$\$", " ", text)
+    text = re.sub(r"\\\[[\s\S]*?\\\]", " ", text)
+    text = re.sub(r"\$[^$\n]+\$", " ", text)
+    text = re.sub(r"\\\([\s\S]*?\\\)", " ", text)
+    # Expand common abbreviations so TTS reads them smoothly instead of spelling awkwardly
+    text = re.sub(r"\bV\.S\.E\.P\.R\.?\b", "Vesper", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bA\.R\.I\.S\.?\b", "Aris", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bAPI\b", "A P I", text)
+    text = re.sub(r"\bUI\b", "U I", text)
+    text = re.sub(r"\bCPU\b", "C P U", text)
+    text = re.sub(r"\bGPU\b", "G P U", text)
+    # Strip markdown symbols while preserving natural punctuation (, . ? ! - ...)
+    text = re.sub(r"[*#`>_~\\{}^|\[\]]", " ", text)
+    # Add subtle natural breath pause after colons/dashes
+    text = text.replace(" — ", ", ").replace(" - ", ", ").replace(": ", "... ")
     return re.sub(r"\s+", " ", text).strip()
 
 
-def extract_speech_and_artifact(raw_text: str) -> tuple[str, str]:
+def parse_dual_response(raw_text: str) -> tuple[str, str, str]:
+    speech_match = re.search(r"\[SPEECH\]([\s\S]*?)\[/SPEECH\]", raw_text, flags=re.IGNORECASE)
+    workbench_match = re.search(r"\[WORKBENCH\]([\s\S]*?)\[/WORKBENCH\]", raw_text, flags=re.IGNORECASE)
+
+    if speech_match:
+        spoken_raw = speech_match.group(1).strip()
+        workbench_raw = workbench_match.group(1).strip() if workbench_match else ""
+        # Strip outer markdown code fence if the entire workbench is a single code block
+        code_only = re.match(r"^```(?:\w+)?\n([\s\S]*?)```$", workbench_raw)
+        artifact = code_only.group(1).strip() if code_only else workbench_raw
+        speech_clean = clean_for_human_speech(spoken_raw)
+        chat_reply = spoken_raw
+        return chat_reply, speech_clean, artifact
+
+    # Fallback if a smaller model didn't follow [SPEECH] tags strictly
     code_blocks = re.findall(r"```(?:\w+)?\n([\s\S]*?)```", raw_text)
     math_blocks = re.findall(r"(?:\$\$|\\\[)([\s\S]*?)(?:\$\$|\\\])", raw_text)
 
@@ -326,13 +397,15 @@ def extract_speech_and_artifact(raw_text: str) -> tuple[str, str]:
         parts.append("$$" + "$$\n\n$$".join(m.strip() for m in math_blocks) + "$$")
     artifact = "\n\n".join(parts).strip()
 
-    # Fallback: if there are no code/display blocks but inline formulas exist, send full derivation to right pad
     if not artifact and (r"\(" in raw_text or "$" in raw_text):
         artifact = raw_text.strip()
 
-    speech_part = re.sub(r"```[\s\S]*?```", " Maine code aur details right side ke Workbench Pad mein likh diye hain. ", raw_text)
-    speech_part = strip_emojis_and_symbols(speech_part)
-    return speech_part, artifact
+    spoken_fallback = re.sub(r"```[\s\S]*?```", " ", raw_text)
+    spoken_fallback = re.sub(r"\$\$[\s\S]*?\$\$", " ", spoken_fallback)
+    speech_clean = clean_for_human_speech(spoken_fallback)
+    if not speech_clean and artifact:
+        speech_clean = "Maine poora kaam right side ke Workbench Pad par ready kar diya hai, ek baar check karo."
+    return raw_text, speech_clean, artifact
 
 
 # ================= V.S.E.P.R. ALL-MODELS MULTI-API ENGINE =================
@@ -346,7 +419,7 @@ def get_configured_providers() -> dict:
     }
 
 
-async def call_gemini_model(model_id: str, label: str, messages: list) -> tuple[str, str]:
+async def call_gemini_model(model_id: str, label: str, sys_prompt: str, messages: list) -> tuple[str, str]:
     key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not key:
         raise RuntimeError("No GEMINI_API_KEY")
@@ -359,11 +432,11 @@ async def call_gemini_model(model_id: str, label: str, messages: list) -> tuple[
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent?key={key}"
     payload = {
-        "systemInstruction": {"parts": [{"text": VSEPR_SYSTEM_PROMPT}]},
+        "systemInstruction": {"parts": [{"text": sys_prompt}]},
         "contents": contents,
-        "generationConfig": {"temperature": 0.72, "maxOutputTokens": 2500},
+        "generationConfig": {"temperature": 0.68, "maxOutputTokens": 3000},
     }
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=35.0) as client:
         r = await client.post(url, json=payload)
         r.raise_for_status()
         data = r.json()
@@ -377,8 +450,8 @@ async def call_openai_compatible(provider: str, url: str, key: str, model: str, 
     if provider == "openrouter":
         headers["HTTP-Referer"] = "https://vsepr-master-os.onrender.com"
         headers["X-Title"] = "V.S.E.P.R. Master OS"
-    payload = {"model": model, "messages": messages, "temperature": 0.72, "max_tokens": 2500}
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    payload = {"model": model, "messages": messages, "temperature": 0.68, "max_tokens": 3000}
+    async with httpx.AsyncClient(timeout=35.0) as client:
         r = await client.post(url, headers=headers, json=payload)
         r.raise_for_status()
         data = r.json()
@@ -395,7 +468,11 @@ async def get_system_status():
 
 @app.post("/api/chat")
 async def vsepr_brain_router(req: ChatRequest):
-    messages = [{"role": "system", "content": VSEPR_SYSTEM_PROMPT}]
+    active_task = detect_task_mode(req.prompt, req.task_mode)
+    task_addon = DEDICATED_TASK_INSTRUCTIONS.get(active_task, "")
+    active_sys_prompt = VSEPR_SYSTEM_PROMPT + task_addon
+
+    messages = [{"role": "system", "content": active_sys_prompt}]
     for h in req.history[-8:]:
         if h.get("role") in ("user", "assistant") and h.get("content"):
             messages.append({"role": h["role"], "content": h["content"]})
@@ -413,9 +490,16 @@ async def vsepr_brain_router(req: ChatRequest):
                 continue
             for model_id, label in GEMINI_MODELS:
                 try:
-                    full_text, brain_label = await call_gemini_model(model_id, label, messages)
-                    speech_text, artifact = extract_speech_and_artifact(full_text)
-                    return {"reply": full_text, "speech": speech_text, "artifact": artifact, "brain": brain_label, "ok": True}
+                    full_text, brain_label = await call_gemini_model(model_id, label, active_sys_prompt, messages)
+                    chat_reply, speech_text, artifact = parse_dual_response(full_text)
+                    return {
+                        "reply": chat_reply,
+                        "speech": speech_text,
+                        "artifact": artifact,
+                        "brain": brain_label,
+                        "task_mode": active_task.upper(),
+                        "ok": True,
+                    }
                 except Exception as e:
                     errors.append(f"{label}: {str(e)[:60]}")
         else:
@@ -428,24 +512,33 @@ async def vsepr_brain_router(req: ChatRequest):
                     full_text, brain_label = await call_openai_compatible(
                         prov, pool["url"], api_key, model_id, label, messages
                     )
-                    speech_text, artifact = extract_speech_and_artifact(full_text)
-                    return {"reply": full_text, "speech": speech_text, "artifact": artifact, "brain": brain_label, "ok": True}
+                    chat_reply, speech_text, artifact = parse_dual_response(full_text)
+                    return {
+                        "reply": chat_reply,
+                        "speech": speech_text,
+                        "artifact": artifact,
+                        "brain": brain_label,
+                        "task_mode": active_task.upper(),
+                        "ok": True,
+                    }
                 except Exception as e:
                     errors.append(f"{label}: {str(e)[:60]}")
 
     return {
         "reply": f"Render Environment mein kam se kam ek free API key add karo! ({' | '.join(errors[:3])})",
-        "speech": "Render environment mein koi active API key add karo taaki mera neural core online ho sake.",
+        "speech": "Render environment mein koi active A P I key add karo taaki mera neural core online ho sake.",
         "artifact": "",
         "brain": "OFFLINE",
+        "task_mode": "OFFLINE",
         "ok": False,
     }
 
 
 @app.post("/api/tts")
 async def human_voice_tts(req: TTSRequest):
-    clean = strip_emojis_and_symbols(req.text)[:650] or "Ready for your command, Mayank."
-    comm = edge_tts.Communicate(clean, req.voice, rate="+2%", pitch="-1Hz")
+    clean = clean_for_human_speech(req.text)[:1400] or "Ready for your command, Mayank."
+    # Natural human-like cadence: slightly grounded pitch, steady conversational speed
+    comm = edge_tts.Communicate(clean, req.voice, rate="+0%", pitch="-2Hz")
     buf = io.BytesIO()
     async for chunk in comm.stream():
         if chunk["type"] == "audio":
